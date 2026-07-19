@@ -17,19 +17,20 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Missing with parameter' }, { status: 400 });
     }
 
-    const db = getDb();
-    const messages = db.prepare(`
+    const db = await getDb();
+    const result = await db.query(`
       SELECT m.*, 
              su.username as sender_username, su.avatar_color as sender_color,
              ru.username as receiver_username, ru.avatar_color as receiver_color
       FROM messages m
       JOIN users su ON m.sender_id = su.id
       JOIN users ru ON m.receiver_id = ru.id
-      WHERE (m.sender_id = ? AND m.receiver_id = ?)
-         OR (m.sender_id = ? AND m.receiver_id = ?)
+      WHERE (m.sender_id = $1 AND m.receiver_id = $2)
+         OR (m.sender_id = $3 AND m.receiver_id = $4)
       ORDER BY m.created_at ASC
       LIMIT 100
-    `).all(decoded.userId, withUserId, withUserId, decoded.userId);
+    `, [decoded.userId, withUserId, withUserId, decoded.userId]);
+    const messages = result.rows;
 
     return NextResponse.json({ messages });
   } catch (error) {

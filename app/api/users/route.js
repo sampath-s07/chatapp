@@ -14,10 +14,12 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    const db = getDb();
-    const users = db.prepare(
-      'SELECT id, username, avatar_color, created_at FROM users WHERE id != ? ORDER BY username ASC'
-    ).all(decoded.userId);
+    const db = await getDb();
+    const result = await db.query(
+      'SELECT id, username, avatar_color, created_at FROM users WHERE id != $1 ORDER BY username ASC',
+      [decoded.userId]
+    );
+    const users = result.rows;
 
     return NextResponse.json({ users, currentUserId: decoded.userId });
   } catch (error) {

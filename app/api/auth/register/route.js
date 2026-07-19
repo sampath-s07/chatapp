@@ -25,21 +25,22 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Password must be at least 4 characters' }, { status: 400 });
     }
 
-    const db = getDb();
-    const existingUser = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+    const db = await getDb();
+    const existingUser = await db.query('SELECT id FROM users WHERE username = $1', [username]);
 
-    if (existingUser) {
+    if (existingUser.rows.length > 0) {
       return NextResponse.json({ error: 'Username already taken' }, { status: 409 });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const color = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
 
-    const result = db.prepare(
-      'INSERT INTO users (username, password, avatar_color) VALUES (?, ?, ?)'
-    ).run(username, hashedPassword, color);
+    const result = await db.query(
+      'INSERT INTO users (username, password, avatar_color) VALUES ($1, $2, $3) RETURNING id, username, avatar_color',
+      [username, hashedPassword, color]
+    );
 
-    const user = { id: result.lastInsertRowid, username, avatar_color: color };
+    const user = result.rows[0];
     const token = signToken({ userId: user.id, username: user.username });
 
     const response = NextResponse.json({ user }, { status: 201 });

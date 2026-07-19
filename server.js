@@ -65,25 +65,18 @@ app.prepare().then(() => {
     });
 
     // Send a direct message
-    socket.on('message:send', (data) => {
+    socket.on('message:send', async (data) => {
       const { senderId, receiverId, content } = data;
-      const db = getDb();
+      const db = await getDb();
 
       try {
         // Save to database
-        const stmt = db.prepare(
-          'INSERT INTO messages (sender_id, receiver_id, content, is_read) VALUES (?, ?, ?, 0)'
+        const result = await db.query(
+          'INSERT INTO messages (sender_id, receiver_id, content, is_read) VALUES ($1, $2, $3, 0) RETURNING *',
+          [senderId, receiverId, content]
         );
-        const result = stmt.run(senderId, receiverId, content);
 
-        const message = {
-          id: result.lastInsertRowid,
-          sender_id: senderId,
-          receiver_id: receiverId,
-          content,
-          is_read: 0,
-          created_at: new Date().toISOString(),
-        };
+        const message = result.rows[0];
 
         // Send back to sender
         socket.emit('message:receive', message);
@@ -99,12 +92,13 @@ app.prepare().then(() => {
     });
 
     // Mark messages as read
-    socket.on('message:read', ({ senderId, receiverId }) => {
-      const db = getDb();
+    socket.on('message:read', async ({ senderId, receiverId }) => {
+      const db = await getDb();
       try {
-        db.prepare(
-          'UPDATE messages SET is_read = 1 WHERE sender_id = ? AND receiver_id = ? AND is_read = 0'
-        ).run(senderId, receiverId);
+        await db.query(
+          'UPDATE messages SET is_read = 1 WHERE sender_id = $1 AND receiver_id = $2 AND is_read = 0',
+          [senderId, receiverId]
+        );
 
         // Notify the original sender their messages were read
         const senderSocketId = onlineUsers.get(senderId);
